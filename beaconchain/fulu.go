@@ -185,6 +185,8 @@ func (b *fuluBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 		ProposerLookahead:            proposers,
 	}
 
+	beaconutils.ApplyDefaultTEEToHeader(genesisState.LatestBlockHeader)
+
 	versionedState := &spec.VersionedBeaconState{
 		Version: spec.DataVersionFulu,
 		Fulu:    genesisState,

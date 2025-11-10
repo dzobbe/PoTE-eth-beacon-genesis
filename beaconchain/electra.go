@@ -178,6 +178,8 @@ func (b *electraBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 		LatestExecutionPayloadHeader: execHeader,
 	}
 
+	beaconutils.ApplyDefaultTEEToHeader(genesisState.LatestBlockHeader)
+
 	versionedState := &spec.VersionedBeaconState{
 		Version: spec.DataVersionElectra,
 		Electra: genesisState,

@@ -156,6 +156,8 @@ func (b *bellatrixBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 		LatestExecutionPayloadHeader: execHeader,
 	}
 
+	beaconutils.ApplyDefaultTEEToHeader(genesisState.LatestBlockHeader)
+
 	versionedState := &spec.VersionedBeaconState{
 		Version:   spec.DataVersionBellatrix,
 		Bellatrix: genesisState,

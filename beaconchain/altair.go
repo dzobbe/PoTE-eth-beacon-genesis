@@ -124,6 +124,8 @@ func (b *altairBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 		NextSyncCommittee:           syncCommittee,
 	}
 
+	beaconutils.ApplyDefaultTEEToHeader(genesisState.LatestBlockHeader)
+
 	versionedState := &spec.VersionedBeaconState{
 		Version: spec.DataVersionAltair,
 		Altair:  genesisState,
