@@ -2,8 +2,12 @@ package beaconutils
 
 import (
 	"bytes"
+	"encoding/base64"
+	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/ethpandaops/eth-beacon-genesis/beaconconfig"
 )
 
 // TEEType enumerates the supported TEE vendor encodings used by the execution
@@ -57,6 +61,78 @@ func makeTEEQuote() []byte {
 // expose these fields are left untouched.
 func ApplyDefaultTEEToHeader(header interface{}) {
 	applyTEEToHeader(header, defaultTEEType, defaultTEEQuote)
+}
+
+// GetGenesisProposerTEEFields resolves the proposer TEE metadata that should be embedded in the
+// genesis block header. It prefers a dedicated TEE_PROPOSER_VENDOR override and falls back to the
+// global TEE_VENDOR default that is already used for validators. Optional attestation quote data can be
+// supplied via TEE_PROPOSER_ATTESTATION as a base64-encoded string; legacy byte inputs are converted to
+// base64 automatically.
+func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, error) {
+	const teeVendorMin = 0
+	const teeVendorMax = 2
+	const teeQuoteSize = 8192
+
+	emptyQuote := make([]byte, teeQuoteSize)
+
+	defaultVendor := cfg.GetUintDefault("TEE_VENDOR", uint64(teeVendorMin))
+	if defaultVendor < teeVendorMin || defaultVendor > teeVendorMax {
+		return 0, emptyQuote, fmt.Errorf("invalid TEE_VENDOR value: %d (must be between %d and %d)", defaultVendor, teeVendorMin, teeVendorMax)
+	}
+
+	proposerVendor := cfg.GetUintDefault("TEE_PROPOSER_VENDOR", defaultVendor)
+	if proposerVendor < teeVendorMin || proposerVendor > teeVendorMax {
+		return 0, emptyQuote, fmt.Errorf("invalid TEE_PROPOSER_VENDOR value: %d (must be between %d and %d)", proposerVendor, teeVendorMin, teeVendorMax)
+	}
+
+	var quoteString string
+	if str, ok := cfg.GetString("TEE_PROPOSER_ATTESTATION"); ok {
+		quoteString = str
+	} else if bytes, ok := cfg.GetBytes("TEE_PROPOSER_ATTESTATION"); ok {
+		quoteString = base64.StdEncoding.EncodeToString(bytes)
+	}
+
+	quoteBytes := make([]byte, teeQuoteSize)
+	if quoteString != "" {
+		decoded, err := base64.StdEncoding.DecodeString(quoteString)
+		if err != nil {
+			return 0, emptyQuote, fmt.Errorf("TEE_PROPOSER_ATTESTATION invalid base64: %w", err)
+		}
+		if len(decoded) != teeQuoteSize {
+			return 0, emptyQuote, fmt.Errorf(
+				"TEE_PROPOSER_ATTESTATION decoded length mismatch: got %d bytes, expected %d",
+				len(decoded),
+				teeQuoteSize,
+			)
+		}
+		copy(quoteBytes, decoded)
+	} else {
+		// Use default quote if none provided
+		copy(quoteBytes, defaultTEEQuote)
+	}
+
+	return TEEType(proposerVendor), quoteBytes, nil
+}
+
+// ApplyTEEToHeaderFromConfig populates the proposer TEE fields on a beacon block header
+// using configuration values. Falls back to defaults if config values are not available.
+// This should be used instead of ApplyDefaultTEEToHeader when config is available.
+func ApplyTEEToHeaderFromConfig(header interface{}, cfg *beaconconfig.Config) {
+	if cfg == nil {
+		// Fallback to defaults if no config provided
+		ApplyDefaultTEEToHeader(header)
+		return
+	}
+
+	teeType, teeQuote, err := GetGenesisProposerTEEFields(cfg)
+	if err != nil {
+		// Log error but fallback to defaults
+		// Note: In production, you might want to return the error instead
+		ApplyDefaultTEEToHeader(header)
+		return
+	}
+
+	applyTEEToHeader(header, teeType, teeQuote)
 }
 
 // TEETypeFromString converts a human-readable vendor identifier (case

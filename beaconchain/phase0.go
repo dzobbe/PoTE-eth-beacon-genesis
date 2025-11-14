@@ -103,7 +103,7 @@ func (b *phase0Builder) BuildState() (*spec.VersionedBeaconState, error) {
 		Slashings:                   make([]phase0.Gwei, epochsPerSlashingVector),
 	}
 
-	beaconutils.ApplyDefaultTEEToHeader(genesisState.LatestBlockHeader)
+	beaconutils.ApplyTEEToHeaderFromConfig(genesisState.LatestBlockHeader, b.clConfig)
 
 	versionedState := &spec.VersionedBeaconState{
 		Version: spec.DataVersionPhase0,
