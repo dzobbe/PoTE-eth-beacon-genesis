@@ -165,6 +165,10 @@ func (c *Config) GetBytesDefault(key string, defaultVal []byte) []byte {
 	return value
 }
 
+func (c *Config) SetString(key string, value string) {
+	c.values[key] = value
+}
+
 func (c *Config) GetSpecs() map[string]interface{} {
 	specs := make(map[string]interface{})
 

@@ -23,7 +23,7 @@ func TestApplyDefaultTEEToHeader_Array(t *testing.T) {
 		t.Fatalf("unexpected tee type: got %d want %d", header.ProposerTEEType, TEETypeSEV)
 	}
 
-	if header.ProposerTEEQuote[0] != defaultTEEQuote[0] || header.ProposerTEEQuote[8191] != defaultTEEQuote[8191] {
+	if header.ProposerTEEQuote[0] != hardcodedTEEQuote[0] || header.ProposerTEEQuote[8191] != hardcodedTEEQuote[8191] {
 		t.Fatalf("quote was not populated with defaults")
 	}
 }
@@ -37,8 +37,8 @@ func TestApplyDefaultTEEToHeader_Slice(t *testing.T) {
 		t.Fatalf("unexpected tee type: got %d want %d", header.ProposerTEEType, TEETypeSEV)
 	}
 
-	if len(header.ProposerTEEQuote) != len(defaultTEEQuote) {
-		t.Fatalf("unexpected tee quote length: got %d want %d", len(header.ProposerTEEQuote), len(defaultTEEQuote))
+	if len(header.ProposerTEEQuote) != len(hardcodedTEEQuote) {
+		t.Fatalf("unexpected tee quote length: got %d want %d", len(header.ProposerTEEQuote), len(hardcodedTEEQuote))
 	}
 }
 

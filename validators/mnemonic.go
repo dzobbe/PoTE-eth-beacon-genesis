@@ -18,10 +18,19 @@ import (
 	e2util "github.com/wealdtech/go-eth2-util"
 )
 
-func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, error) {
+func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, string, error) {
 	mnemonics, err := loadMnemonics(mnemonicsConfigPath)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+
+	// Extract vendor type from mnemonics (use first non-empty vendor_type found)
+	var vendorType string
+	for _, mnemonicSrc := range mnemonics {
+		if mnemonicSrc.VendorType != "" {
+			vendorType = mnemonicSrc.VendorType
+			break
+		}
 	}
 
 	var valCount uint64
@@ -44,7 +53,7 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, err
 
 		seed, err := seedFromMnemonic(mnemonicSrc.Mnemonic)
 		if err != nil {
-			return nil, fmt.Errorf("mnemonic %d is bad", m)
+			return nil, "", fmt.Errorf("mnemonic %d is bad", m)
 		}
 
 		for i := uint64(0); i < mnemonicSrc.Count; i++ {
@@ -118,11 +127,11 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, err
 		offset += mnemonicSrc.Count
 
 		if err := g.Wait(); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
-	return validators, nil
+	return validators, vendorType, nil
 }
 
 func validatorKeyName(i uint64) string {
@@ -143,13 +152,14 @@ func seedFromMnemonic(mnemonic string) (seed []byte, err error) {
 }
 
 type MnemonicSrc struct {
-	Mnemonic  string `yaml:"mnemonic"`
-	Start     uint64 `yaml:"start"`
-	Count     uint64 `yaml:"count"`
-	Balance   uint64 `yaml:"balance"`
-	WdAddress string `yaml:"wd_address"`
-	WdPrefix  string `yaml:"wd_prefix"`
-	WdKeyPath string `yaml:"wd_key_path"`
+	Mnemonic   string `yaml:"mnemonic"`
+	Start      uint64 `yaml:"start"`
+	Count      uint64 `yaml:"count"`
+	Balance    uint64 `yaml:"balance"`
+	WdAddress  string `yaml:"wd_address"`
+	WdPrefix   string `yaml:"wd_prefix"`
+	WdKeyPath  string `yaml:"wd_key_path"`
+	VendorType string `yaml:"vendor_type"`
 }
 
 func loadMnemonics(srcPath string) ([]MnemonicSrc, error) {

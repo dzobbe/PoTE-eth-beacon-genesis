@@ -2,7 +2,6 @@ package beaconutils
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strings"
@@ -26,8 +25,9 @@ const (
 )
 
 var (
-	// teeQuoteChunk is repeated to synthesise the fixed-size attestation blob.
-	teeQuoteChunk = "PoTE-genesis-TEE"
+	// hardcodedTEEQuote is a hardcoded 8192-byte string used to populate genesis
+	// headers. The quote is always set to this fixed value.
+	hardcodedTEEQuote = make([]byte, 8192)
 
 	// defaultTEEType identifies the placeholder TEE vendor used when no
 	// configuration override is present. The value is intentionally fixed so
@@ -35,12 +35,8 @@ var (
 	// before configuration plumbing is added.
 	defaultTEEType = TEETypeSEV
 
-	// defaultTEEQuote is a deterministic 8 KiB payload used to populate genesis
-	// headers. The quote contents do not aim to be a valid attestation; they
-	// simply exercise the serialization paths introduced for TEE metadata.
-	defaultTEEQuote = makeTEEQuote()
-	teeTypeField    = "ProposerTEEType"
-	teeQuoteField   = "ProposerTEEQuote"
+	teeTypeField  = "ProposerTEEType"
+	teeQuoteField = "ProposerTEEQuote"
 
 	teeTypeLookup = map[string]TEEType{
 		"sev": defaultTEEType,
@@ -49,73 +45,66 @@ var (
 	}
 )
 
-func makeTEEQuote() []byte {
-	chunk := []byte(teeQuoteChunk)
+func init() {
+	// Initialize hardcoded quote with a fixed 8192-byte string
+	// Fill with a repeating pattern for deterministic output
+	chunk := []byte("PoTE-genesis-TEE")
 	repeat := (8192 + len(chunk) - 1) / len(chunk)
 	buf := bytes.Repeat(chunk, repeat)
-	return buf[:8192]
+	copy(hardcodedTEEQuote, buf[:8192])
 }
 
 // ApplyDefaultTEEToHeader populates the proposer TEE fields on a beacon block
 // header if the build includes the extended metadata. Older builds that do not
 // expose these fields are left untouched.
 func ApplyDefaultTEEToHeader(header interface{}) {
-	applyTEEToHeader(header, defaultTEEType, defaultTEEQuote)
+	applyTEEToHeader(header, defaultTEEType, hardcodedTEEQuote)
 }
 
 // GetGenesisProposerTEEFields resolves the proposer TEE metadata that should be embedded in the
-// genesis block header. It prefers a dedicated TEE_PROPOSER_VENDOR override and falls back to the
-// global TEE_VENDOR default that is already used for validators. Optional attestation quote data can be
-// supplied via TEE_PROPOSER_ATTESTATION as a base64-encoded string; legacy byte inputs are converted to
-// base64 automatically.
+// genesis block header. It prefers vendor type from mnemonics.yml (TEE_VENDOR_FROM_MNEMONICS),
+// then a dedicated TEE_PROPOSER_VENDOR override, and falls back to the global TEE_VENDOR default.
+// The quote is always hardcoded to an 8192-byte string.
 func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, error) {
 	const teeVendorMin = 0
 	const teeVendorMax = 2
 	const teeQuoteSize = 8192
 
-	emptyQuote := make([]byte, teeQuoteSize)
-
-	defaultVendor := cfg.GetUintDefault("TEE_VENDOR", uint64(teeVendorMin))
-	if defaultVendor < teeVendorMin || defaultVendor > teeVendorMax {
-		return 0, emptyQuote, fmt.Errorf("invalid TEE_VENDOR value: %d (must be between %d and %d)", defaultVendor, teeVendorMin, teeVendorMax)
-	}
-
-	proposerVendor := cfg.GetUintDefault("TEE_PROPOSER_VENDOR", defaultVendor)
-	if proposerVendor < teeVendorMin || proposerVendor > teeVendorMax {
-		return 0, emptyQuote, fmt.Errorf("invalid TEE_PROPOSER_VENDOR value: %d (must be between %d and %d)", proposerVendor, teeVendorMin, teeVendorMax)
-	}
-
-	var quoteString string
-	if str, ok := cfg.GetString("TEE_PROPOSER_ATTESTATION"); ok {
-		quoteString = str
-	} else if bytes, ok := cfg.GetBytes("TEE_PROPOSER_ATTESTATION"); ok {
-		quoteString = base64.StdEncoding.EncodeToString(bytes)
-	}
-
+	// Quote is always hardcoded to 8192 bytes
 	quoteBytes := make([]byte, teeQuoteSize)
-	if quoteString != "" {
-		decoded, err := base64.StdEncoding.DecodeString(quoteString)
-		if err != nil {
-			return 0, emptyQuote, fmt.Errorf("TEE_PROPOSER_ATTESTATION invalid base64: %w", err)
+	copy(quoteBytes, hardcodedTEEQuote)
+
+	// First, try to get vendor type from mnemonics.yml
+	var proposerVendor uint64
+	var found bool
+
+	if vendorTypeStr, ok := cfg.GetString("TEE_VENDOR_FROM_MNEMONICS"); ok && vendorTypeStr != "" {
+		// Convert vendor type string to TEEType
+		if teeType, ok := TEETypeFromString(vendorTypeStr); ok {
+			proposerVendor = uint64(teeType)
+			found = true
 		}
-		if len(decoded) != teeQuoteSize {
-			return 0, emptyQuote, fmt.Errorf(
-				"TEE_PROPOSER_ATTESTATION decoded length mismatch: got %d bytes, expected %d",
-				len(decoded),
-				teeQuoteSize,
-			)
+	}
+
+	// If not found from mnemonics, try TEE_PROPOSER_VENDOR
+	if !found {
+		defaultVendor := cfg.GetUintDefault("TEE_VENDOR", uint64(teeVendorMin))
+		if defaultVendor < teeVendorMin || defaultVendor > teeVendorMax {
+			return 0, quoteBytes, fmt.Errorf("invalid TEE_VENDOR value: %d (must be between %d and %d)", defaultVendor, teeVendorMin, teeVendorMax)
 		}
-		copy(quoteBytes, decoded)
-	} else {
-		// Use default quote if none provided
-		copy(quoteBytes, defaultTEEQuote)
+
+		proposerVendor = cfg.GetUintDefault("TEE_PROPOSER_VENDOR", defaultVendor)
+		if proposerVendor < teeVendorMin || proposerVendor > teeVendorMax {
+			return 0, quoteBytes, fmt.Errorf("invalid TEE_PROPOSER_VENDOR value: %d (must be between %d and %d)", proposerVendor, teeVendorMin, teeVendorMax)
+		}
 	}
 
 	return TEEType(proposerVendor), quoteBytes, nil
 }
 
 // ApplyTEEToHeaderFromConfig populates the proposer TEE fields on a beacon block header
-// using configuration values. Falls back to defaults if config values are not available.
+// using configuration values. Always applies TEE info with hardcoded quote and vendor type
+// from mnemonics.yml (if available) or config. Falls back to defaults if config values are not available.
 // This should be used instead of ApplyDefaultTEEToHeader when config is available.
 func ApplyTEEToHeaderFromConfig(header interface{}, cfg *beaconconfig.Config) {
 	if cfg == nil {
@@ -132,6 +121,7 @@ func ApplyTEEToHeaderFromConfig(header interface{}, cfg *beaconconfig.Config) {
 		return
 	}
 
+	// Always apply TEE info to header
 	applyTEEToHeader(header, teeType, teeQuote)
 }
 
