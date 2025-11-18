@@ -180,6 +180,20 @@ func (b *electraBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 
 	beaconutils.ApplyTEEToHeaderFromConfig(genesisState.LatestBlockHeader, b.clConfig)
 
+	// Log header size after TEE fields are applied
+	if genesisState.LatestBlockHeader != nil {
+		// Try to get SSZ size of header
+		headerSSZ, err := b.dynSsz.MarshalSSZ(genesisState.LatestBlockHeader)
+		if err == nil {
+			logrus.Infof("🔍 GENESIS GENERATOR: BeaconBlockHeader SSZ size after TEE application: %d bytes (expected TEE: 8305, standard: 112)", len(headerSSZ))
+			if len(headerSSZ) != 8305 && len(headerSSZ) != 112 {
+				logrus.Warnf("⚠️  GENESIS GENERATOR: Unexpected header size %d bytes - neither TEE (8305) nor standard (112)", len(headerSSZ))
+			}
+		} else {
+			logrus.Warnf("Failed to marshal header to SSZ for size check: %v", err)
+		}
+	}
+
 	versionedState := &spec.VersionedBeaconState{
 		Version: spec.DataVersionElectra,
 		Electra: genesisState,
@@ -199,7 +213,40 @@ func (b *electraBuilder) Serialize(state *spec.VersionedBeaconState, contentType
 
 	switch contentType {
 	case http.ContentTypeSSZ:
-		return b.dynSsz.MarshalSSZ(state.Electra)
+		// Log header size before encoding
+		if state.Electra != nil && state.Electra.LatestBlockHeader != nil {
+			headerSSZ, headerErr := b.dynSsz.MarshalSSZ(state.Electra.LatestBlockHeader)
+			if headerErr == nil {
+				logrus.Infof("🔍 GENESIS GENERATOR: BeaconBlockHeader SSZ size before state encoding: %d bytes (expected TEE: 8305, standard: 112)", len(headerSSZ))
+			}
+		}
+		
+		sszBytes, err := b.dynSsz.MarshalSSZ(state.Electra)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Analyze the encoded SSZ to check offset values
+		if len(sszBytes) > 8369 {
+			// Calculate expected fixed portion: genesis_time(8) + genesis_validators_root(32) + slot(8) + fork(16) + header(8305) = 8369
+			expectedFixedEnd := 8 + 32 + 8 + 16 + 8305 // 8369
+			expectedFixedEndStandard := 8 + 32 + 8 + 16 + 112 // 176
+			
+			// Read first few offsets
+			if len(sszBytes) >= expectedFixedEnd + 4 {
+				offset1 := uint32(sszBytes[expectedFixedEnd]) | uint32(sszBytes[expectedFixedEnd+1])<<8 | uint32(sszBytes[expectedFixedEnd+2])<<16 | uint32(sszBytes[expectedFixedEnd+3])<<24
+				logrus.Infof("🔍 GENESIS GENERATOR: First offset at position %d: %d (points to byte %d)", expectedFixedEnd, offset1, offset1)
+				logrus.Infof("🔍 GENESIS GENERATOR: Expected fixed portion ends at: %d (TEE) or %d (standard)", expectedFixedEnd, expectedFixedEndStandard)
+				
+				if offset1 < uint32(expectedFixedEnd) {
+					logrus.Warnf("⚠️  GENESIS GENERATOR: Offset %d points INTO fixed portion (ends at %d). This suggests dynssz calculated fixed portion assuming %d byte header instead of %d bytes", 
+						offset1, expectedFixedEnd, 112, 8305)
+				}
+			}
+		}
+		
+		logrus.Infof("🔍 GENESIS GENERATOR: Total BeaconState SSZ size: %d bytes", len(sszBytes))
+		return sszBytes, nil
 	case http.ContentTypeJSON:
 		return state.Electra.MarshalJSON()
 	default:
