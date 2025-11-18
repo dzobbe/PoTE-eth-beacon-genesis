@@ -85,4 +85,3 @@ require (
 )
 
 replace github.com/attestantio/go-eth2-client => github.com/dzobbe/PoTE-go-eth2-client v0.0.0-20251118125509-ca94ee71fba2
- 
