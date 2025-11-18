@@ -221,29 +221,36 @@ func (b *electraBuilder) Serialize(state *spec.VersionedBeaconState, contentType
 			}
 		}
 		
-		// Use the generated MarshalSSZ method instead of dynssz to ensure correct offset calculation
+		// Use the generated MarshalSSZTo method directly to ensure correct offset calculation
 		// The generated code in beaconstate_ssz.go now calculates offsets dynamically based on actual header size
-		sszBytes, err := state.Electra.MarshalSSZ()
+		// Call MarshalSSZTo directly instead of MarshalSSZ to ensure our fixed offset calculation is used
+		sszBytes, err := state.Electra.MarshalSSZTo(nil)
 		if err != nil {
 			return nil, err
 		}
 		
 		// Analyze the encoded SSZ to check offset values
-		if len(sszBytes) > 8369 {
-			// Calculate expected fixed portion: genesis_time(8) + genesis_validators_root(32) + slot(8) + fork(16) + header(8305) = 8369
-			expectedFixedEnd := 8 + 32 + 8 + 16 + 8305 // 8369
-			expectedFixedEndStandard := 8 + 32 + 8 + 16 + 112 // 176
+		// Calculate expected fixed portion: genesis_time(8) + genesis_validators_root(32) + slot(8) + fork(16) + header(variable) + BlockRoots(8192*32) + StateRoots(8192*32)
+		if state.Electra != nil && state.Electra.LatestBlockHeader != nil {
+			headerSize := state.Electra.LatestBlockHeader.SizeSSZ()
+			expectedFixedEnd := 8 + 32 + 8 + 16 + headerSize + 8192*32 + 8192*32 // All fixed-length fields
+			expectedFixedEndStandard := 8 + 32 + 8 + 16 + 112 + 8192*32 + 8192*32 // With standard 112-byte header
 			
-			// Read first few offsets
+			logrus.Infof("🔍 GENESIS GENERATOR: Header size: %d bytes, Expected fixed portion ends at: %d (TEE) or %d (standard)", headerSize, expectedFixedEnd, expectedFixedEndStandard)
+			
+			// Read first offset (should be at position expectedFixedEnd)
 			if len(sszBytes) >= expectedFixedEnd + 4 {
 				offset1 := uint32(sszBytes[expectedFixedEnd]) | uint32(sszBytes[expectedFixedEnd+1])<<8 | uint32(sszBytes[expectedFixedEnd+2])<<16 | uint32(sszBytes[expectedFixedEnd+3])<<24
 				logrus.Infof("🔍 GENESIS GENERATOR: First offset at position %d: %d (points to byte %d)", expectedFixedEnd, offset1, offset1)
-				logrus.Infof("🔍 GENESIS GENERATOR: Expected fixed portion ends at: %d (TEE) or %d (standard)", expectedFixedEnd, expectedFixedEndStandard)
 				
 				if offset1 < uint32(expectedFixedEnd) {
-					logrus.Warnf("⚠️  GENESIS GENERATOR: Offset %d points INTO fixed portion (ends at %d). This suggests dynssz calculated fixed portion assuming %d byte header instead of %d bytes", 
-						offset1, expectedFixedEnd, 112, 8305)
+					logrus.Warnf("⚠️  GENESIS GENERATOR: Offset %d points INTO fixed portion (ends at %d). This suggests offset calculation assumed %d byte header instead of %d bytes", 
+						offset1, expectedFixedEnd, 112, headerSize)
+				} else {
+					logrus.Infof("✅ GENESIS GENERATOR: Offset %d correctly points beyond fixed portion (ends at %d)", offset1, expectedFixedEnd)
 				}
+			} else {
+				logrus.Warnf("⚠️  GENESIS GENERATOR: SSZ bytes too short to read offset at position %d (have %d bytes)", expectedFixedEnd, len(sszBytes))
 			}
 		}
 		
