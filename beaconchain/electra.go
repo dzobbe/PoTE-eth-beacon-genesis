@@ -221,7 +221,9 @@ func (b *electraBuilder) Serialize(state *spec.VersionedBeaconState, contentType
 			}
 		}
 		
-		sszBytes, err := b.dynSsz.MarshalSSZ(state.Electra)
+		// Use the generated MarshalSSZ method instead of dynssz to ensure correct offset calculation
+		// The generated code in beaconstate_ssz.go now calculates offsets dynamically based on actual header size
+		sszBytes, err := state.Electra.MarshalSSZ()
 		if err != nil {
 			return nil, err
 		}
