@@ -8,4 +8,5 @@ type Validator struct {
 	PublicKey             phase0.BLSPubKey
 	WithdrawalCredentials []byte
 	Balance               *uint64
+	VendorType            string
 }

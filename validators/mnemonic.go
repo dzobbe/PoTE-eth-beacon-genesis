@@ -24,16 +24,25 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, str
 		return nil, "", err
 	}
 
-	// Extract vendor type from mnemonics (use first non-empty vendor_type found)
+	// Extract vendor type from mnemonics (use first non-empty vendor_type found for backward compatibility)
 	var vendorType string
+	vendorTypeCounts := make(map[string]int)
 	for _, mnemonicSrc := range mnemonics {
 		if mnemonicSrc.VendorType != "" {
-			vendorType = mnemonicSrc.VendorType
-			break
+			if vendorType == "" {
+				vendorType = mnemonicSrc.VendorType
+			}
+			vendorTypeCounts[mnemonicSrc.VendorType] += int(mnemonicSrc.Count)
 		}
 	}
-	if vendorType != "" {
-		logrus.Infof("extracted vendor type from mnemonics: %s", vendorType)
+	if len(vendorTypeCounts) > 0 {
+		logrus.Infof("vendor types found in mnemonics:")
+		for vType, count := range vendorTypeCounts {
+			logrus.Infof("  - %s: %d validators", vType, count)
+		}
+		if vendorType != "" {
+			logrus.Infof("using first vendor type for config: %s", vendorType)
+		}
 	} else {
 		logrus.Infof("no vendor type found in mnemonics")
 	}
@@ -54,7 +63,11 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, str
 
 		var prog int32
 
-		logrus.Infof("processing mnemonic %d, for %d validators", m, mnemonicSrc.Count)
+		if mnemonicSrc.VendorType != "" {
+			logrus.Infof("processing mnemonic %d, for %d validators (vendor_type: %s)", m, mnemonicSrc.Count, mnemonicSrc.VendorType)
+		} else {
+			logrus.Infof("processing mnemonic %d, for %d validators", m, mnemonicSrc.Count)
+		}
 
 		seed, err := seedFromMnemonic(mnemonicSrc.Mnemonic)
 		if err != nil {
@@ -74,6 +87,7 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, str
 				data := &Validator{
 					PublicKey:             phase0.BLSPubKey(signingSK.PublicKey().Marshal()),
 					WithdrawalCredentials: make([]byte, 32),
+					VendorType:            mnemonicSrc.VendorType,
 				}
 
 				if mnemonicSrc.WdPrefix != "" && mnemonicSrc.WdPrefix != "0x00" && mnemonicSrc.WdAddress != "" {
