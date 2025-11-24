@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ethpandaops/eth-beacon-genesis/beaconconfig"
+	"github.com/ethpandaops/eth-beacon-genesis/validators"
 	"github.com/sirupsen/logrus"
 )
 
@@ -62,11 +63,22 @@ func ApplyDefaultTEEToHeader(header interface{}) {
 	applyTEEToHeader(header, defaultTEEType, hardcodedTEEQuote)
 }
 
+// ExtractVendorTypeFromValidators extracts the vendor type from validators.
+// Returns the first non-empty VendorType found, or empty string if none found.
+func ExtractVendorTypeFromValidators(vals []*validators.Validator) string {
+	for _, val := range vals {
+		if val != nil && val.VendorType != "" {
+			return val.VendorType
+		}
+	}
+	return ""
+}
+
 // GetGenesisProposerTEEFields resolves the proposer TEE metadata that should be embedded in the
-// genesis block header. It prefers vendor type from mnemonics.yml (TEE_VENDOR_FROM_MNEMONICS),
-// then a dedicated TEE_PROPOSER_VENDOR override, and falls back to the global TEE_VENDOR default.
-// The quote is always hardcoded to an 8192-byte string.
-func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, error) {
+// genesis block header. It prefers vendor type from validators, then from mnemonics.yml config
+// (TEE_VENDOR_FROM_MNEMONICS), then a dedicated TEE_PROPOSER_VENDOR override, and falls back to
+// the global TEE_VENDOR default. The quote is always hardcoded to an 8192-byte string.
+func GetGenesisProposerTEEFields(cfg *beaconconfig.Config, vals []*validators.Validator) (TEEType, []byte, error) {
 	const teeVendorMin = 0
 	const teeVendorMax = 2
 	const teeQuoteSize = 8192
@@ -75,18 +87,35 @@ func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, err
 	quoteBytes := make([]byte, teeQuoteSize)
 	copy(quoteBytes, hardcodedTEEQuote)
 
-	// First, try to get vendor type from mnemonics.yml
 	var proposerVendor uint64
 	var found bool
 
-	if vendorTypeStr, ok := cfg.GetString("TEE_VENDOR_FROM_MNEMONICS"); ok && vendorTypeStr != "" {
-		// Convert vendor type string to TEEType
-		if teeType, ok := TEETypeFromString(vendorTypeStr); ok {
-			proposerVendor = uint64(teeType)
-			found = true
-			logrus.Infof("using vendor type from mnemonics: %s (TEEType: %d)", vendorTypeStr, proposerVendor)
-		} else {
-			logrus.Warnf("invalid vendor type from mnemonics: %s (not a valid TEEType)", vendorTypeStr)
+	// First, try to get vendor type from validators
+	if len(vals) > 0 {
+		vendorTypeStr := ExtractVendorTypeFromValidators(vals)
+		if vendorTypeStr != "" {
+			// Convert vendor type string to TEEType
+			if teeType, ok := TEETypeFromString(vendorTypeStr); ok {
+				proposerVendor = uint64(teeType)
+				found = true
+				logrus.Infof("using vendor type from validators: %s (TEEType: %d)", vendorTypeStr, proposerVendor)
+			} else {
+				logrus.Warnf("invalid vendor type from validators: %s (not a valid TEEType)", vendorTypeStr)
+			}
+		}
+	}
+
+	// If not found from validators, try to get vendor type from mnemonics.yml config
+	if !found {
+		if vendorTypeStr, ok := cfg.GetString("TEE_VENDOR_FROM_MNEMONICS"); ok && vendorTypeStr != "" {
+			// Convert vendor type string to TEEType
+			if teeType, ok := TEETypeFromString(vendorTypeStr); ok {
+				proposerVendor = uint64(teeType)
+				found = true
+				logrus.Infof("using vendor type from mnemonics config: %s (TEEType: %d)", vendorTypeStr, proposerVendor)
+			} else {
+				logrus.Warnf("invalid vendor type from mnemonics config: %s (not a valid TEEType)", vendorTypeStr)
+			}
 		}
 	}
 
@@ -112,17 +141,18 @@ func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, err
 }
 
 // ApplyTEEToHeaderFromConfig populates the proposer TEE fields on a beacon block header
-// using configuration values. Always applies TEE info with hardcoded quote and vendor type
-// from mnemonics.yml (if available) or config. Falls back to defaults if config values are not available.
-// This should be used instead of ApplyDefaultTEEToHeader when config is available.
-func ApplyTEEToHeaderFromConfig(header interface{}, cfg *beaconconfig.Config) {
+// using configuration values and validators. Always applies TEE info with hardcoded quote and vendor type
+// from validators (if available), then from mnemonics.yml config (if available), or config. Falls back
+// to defaults if config values are not available. This should be used instead of ApplyDefaultTEEToHeader
+// when config is available.
+func ApplyTEEToHeaderFromConfig(header interface{}, cfg *beaconconfig.Config, vals []*validators.Validator) {
 	if cfg == nil {
 		// Fallback to defaults if no config provided
 		ApplyDefaultTEEToHeader(header)
 		return
 	}
 
-	teeType, teeQuote, err := GetGenesisProposerTEEFields(cfg)
+	teeType, teeQuote, err := GetGenesisProposerTEEFields(cfg, vals)
 	if err != nil {
 		// Log error but fallback to defaults
 		// Note: In production, you might want to return the error instead

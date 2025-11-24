@@ -176,7 +176,7 @@ func (b *denebBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 		LatestExecutionPayloadHeader: execHeader,
 	}
 
-	beaconutils.ApplyTEEToHeaderFromConfig(genesisState.LatestBlockHeader, b.clConfig)
+	beaconutils.ApplyTEEToHeaderFromConfig(genesisState.LatestBlockHeader, b.clConfig, b.validators)
 
 	versionedState := &spec.VersionedBeaconState{
 		Version: spec.DataVersionDeneb,

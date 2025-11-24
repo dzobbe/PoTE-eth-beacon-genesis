@@ -178,7 +178,7 @@ func (b *electraBuilder) BuildState() (*spec.VersionedBeaconState, error) {
 		LatestExecutionPayloadHeader: execHeader,
 	}
 
-	beaconutils.ApplyTEEToHeaderFromConfig(genesisState.LatestBlockHeader, b.clConfig)
+	beaconutils.ApplyTEEToHeaderFromConfig(genesisState.LatestBlockHeader, b.clConfig, b.validators)
 
 	// Log header size after TEE fields are applied
 	if genesisState.LatestBlockHeader != nil {
