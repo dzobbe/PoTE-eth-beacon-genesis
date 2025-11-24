@@ -84,4 +84,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/attestantio/go-eth2-client => github.com/dzobbe/PoTE-go-eth2-client v0.0.0-20251120111438-8d424b898818
+replace github.com/attestantio/go-eth2-client => github.com/dzobbe/PoTE-go-eth2-client v0.0.0-20251124150240-32a0793720d2
