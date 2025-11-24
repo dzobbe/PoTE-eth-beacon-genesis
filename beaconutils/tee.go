@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ethpandaops/eth-beacon-genesis/beaconconfig"
+	"github.com/sirupsen/logrus"
 )
 
 // TEEType enumerates the supported TEE vendor encodings used by the execution
@@ -83,6 +84,9 @@ func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, err
 		if teeType, ok := TEETypeFromString(vendorTypeStr); ok {
 			proposerVendor = uint64(teeType)
 			found = true
+			logrus.Infof("using vendor type from mnemonics: %s (TEEType: %d)", vendorTypeStr, proposerVendor)
+		} else {
+			logrus.Warnf("invalid vendor type from mnemonics: %s (not a valid TEEType)", vendorTypeStr)
 		}
 	}
 
@@ -96,6 +100,11 @@ func GetGenesisProposerTEEFields(cfg *beaconconfig.Config) (TEEType, []byte, err
 		proposerVendor = cfg.GetUintDefault("TEE_PROPOSER_VENDOR", defaultVendor)
 		if proposerVendor < teeVendorMin || proposerVendor > teeVendorMax {
 			return 0, quoteBytes, fmt.Errorf("invalid TEE_PROPOSER_VENDOR value: %d (must be between %d and %d)", proposerVendor, teeVendorMin, teeVendorMax)
+		}
+		if proposerVendor == defaultVendor {
+			logrus.Infof("using default vendor type from TEE_VENDOR config: %d", proposerVendor)
+		} else {
+			logrus.Infof("using vendor type from TEE_PROPOSER_VENDOR config: %d", proposerVendor)
 		}
 	}
 

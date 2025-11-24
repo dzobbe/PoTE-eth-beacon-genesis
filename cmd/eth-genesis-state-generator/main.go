@@ -146,6 +146,7 @@ func runDevnet(ctx context.Context, cmd *cli.Command) error {
 		// Set vendor type from mnemonics in config if found
 		if vendorType != "" {
 			clConfig.SetString("TEE_VENDOR_FROM_MNEMONICS", vendorType)
+			logrus.Infof("set vendor type in config: %s", vendorType)
 		}
 	}
 

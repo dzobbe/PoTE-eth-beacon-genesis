@@ -32,6 +32,11 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, str
 			break
 		}
 	}
+	if vendorType != "" {
+		logrus.Infof("extracted vendor type from mnemonics: %s", vendorType)
+	} else {
+		logrus.Infof("no vendor type found in mnemonics")
+	}
 
 	var valCount uint64
 
