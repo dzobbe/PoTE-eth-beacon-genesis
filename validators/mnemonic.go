@@ -18,33 +18,10 @@ import (
 	e2util "github.com/wealdtech/go-eth2-util"
 )
 
-func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, string, error) {
+func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, error) {
 	mnemonics, err := loadMnemonics(mnemonicsConfigPath)
 	if err != nil {
-		return nil, "", err
-	}
-
-	// Extract vendor type from mnemonics (use first non-empty vendor_type found for backward compatibility)
-	var vendorType string
-	vendorTypeCounts := make(map[string]int)
-	for _, mnemonicSrc := range mnemonics {
-		if mnemonicSrc.VendorType != "" {
-			if vendorType == "" {
-				vendorType = mnemonicSrc.VendorType
-			}
-			vendorTypeCounts[mnemonicSrc.VendorType] += int(mnemonicSrc.Count)
-		}
-	}
-	if len(vendorTypeCounts) > 0 {
-		logrus.Infof("vendor types found in mnemonics:")
-		for vType, count := range vendorTypeCounts {
-			logrus.Infof("  - %s: %d validators", vType, count)
-		}
-		if vendorType != "" {
-			logrus.Infof("using first vendor type for config: %s", vendorType)
-		}
-	} else {
-		logrus.Infof("no vendor type found in mnemonics")
+		return nil, err
 	}
 
 	var valCount uint64
@@ -71,7 +48,7 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, str
 
 		seed, err := seedFromMnemonic(mnemonicSrc.Mnemonic)
 		if err != nil {
-			return nil, "", fmt.Errorf("mnemonic %d is bad", m)
+			return nil, fmt.Errorf("mnemonic %d is bad", m)
 		}
 
 		for i := uint64(0); i < mnemonicSrc.Count; i++ {
@@ -146,11 +123,11 @@ func GenerateValidatorsByMnemonic(mnemonicsConfigPath string) ([]*Validator, str
 		offset += mnemonicSrc.Count
 
 		if err := g.Wait(); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 	}
 
-	return validators, vendorType, nil
+	return validators, nil
 }
 
 func validatorKeyName(i uint64) string {

@@ -58,7 +58,7 @@ func TestGenerateValidatorsByMnemonic_Valid(t *testing.T) {
 		t.Fatalf("failed to set ETH mode: %v", err)
 	}
 
-	validators, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	validators, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err != nil {
 		t.Fatalf("failed to load validators from mnemonics: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestGenerateValidatorsByMnemonic_Valid(t *testing.T) {
 func TestGenerateValidatorsByMnemonic_InvalidFile(t *testing.T) {
 	mnemonicsFile := createTestMnemonicsFile(t, ``)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile + "invalid")
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile + "invalid")
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -129,7 +129,7 @@ func TestGenerateValidatorsByMnemonic_InvalidYaml(t *testing.T) {
   wd_prefix: "0x00"
 `)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -148,7 +148,7 @@ func TestGenerateValidatorsByMnemonic_InvalidMnemonic(t *testing.T) {
   wd_prefix: "0x00"
 `)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -168,7 +168,7 @@ func TestGenerateValidatorsByMnemonic_InvalidWdAddress(t *testing.T) {
   wd_address: "invalid_address"
 `)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -188,7 +188,7 @@ func TestGenerateValidatorsByMnemonic_InvalidWdPrefix(t *testing.T) {
   wd_address: "0x1234567890abcdef1234567890abcdef12345678"
 `)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -208,7 +208,7 @@ func TestGenerateValidatorsByMnemonic_InvalidKeyIndex(t *testing.T) {
   wd_address: "0x1234567890abcdef1234567890abcdef12345678"
 `)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -228,7 +228,7 @@ func TestGenerateValidatorsByMnemonic_InvalidWdKeyIndex(t *testing.T) {
   wd_key_path: "invalid_key_path"
 `)
 
-	_, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	_, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -244,7 +244,7 @@ func TestGenerateValidatorsByMnemonic_MassKeys(t *testing.T) {
   wd_address: "0x1234567890abcdef1234567890abcdef12345678"
 `)
 
-	validators, _, err := GenerateValidatorsByMnemonic(mnemonicsFile)
+	validators, err := GenerateValidatorsByMnemonic(mnemonicsFile)
 	if err != nil {
 		t.Fatalf("expected no error, got %s", err)
 	}

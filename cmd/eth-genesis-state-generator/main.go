@@ -134,19 +134,13 @@ func runDevnet(ctx context.Context, cmd *cli.Command) error {
 	var clValidators []*validators.Validator
 
 	if mnemonicsFile != "" {
-		vals, vendorType, err2 := validators.GenerateValidatorsByMnemonic(mnemonicsFile)
+		vals, err2 := validators.GenerateValidatorsByMnemonic(mnemonicsFile)
 		if err2 != nil {
 			return fmt.Errorf("failed to load validators from mnemonics file: %w", err2)
 		}
 
 		if len(vals) > 0 {
 			clValidators = vals
-		}
-
-		// Set vendor type from mnemonics in config if found
-		if vendorType != "" {
-			clConfig.SetString("TEE_VENDOR_FROM_MNEMONICS", vendorType)
-			logrus.Infof("set vendor type in config: %s", vendorType)
 		}
 	}
 
